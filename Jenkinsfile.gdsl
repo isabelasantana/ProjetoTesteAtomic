@@ -1,0 +1,46 @@
+pipeline {
+    agent any
+    stages {
+        stage('Code Analysis'){
+            steps{
+                script{
+                    if(isUnix()){
+                        sh 'mvn sonar:sonar'
+                    } else {
+                        bat 'mvn sonar:sonar'
+                    }
+                }
+            }
+        }
+        stage('Tests') {
+            steps {
+                script {
+                    if (isUnix()) {
+                        dir('src/test/resources') {
+                            sh 'chmod +x chromedriver'
+                            sh 'chmod +x geckodriver'
+                        }
+                        withEnv(['DISPLAY=:1']) {
+                            sh 'Xvfb :1 -screen 0 1366x768x16 &'
+                            sh 'mvn clean test -Dbrowser=Chrome -Dcucumber.options="--tags ~@NORUN"'
+                        }
+                    } else {
+                        bat 'mvn clean test -Dbrowser=Chrome -Dcucumber.options="--tags ~@NORUN"'
+                    }
+                    archiveArtifacts artifacts: '**', onlyIfSuccessful: false
+                }
+            }
+        }
+        stage('Report') {
+            steps {
+                publishHTML (target: [allowMissing: false, alwaysLinkToLastBuild: true, keepAll: true, reportDir: 'target/extent-reports', reportFiles: 'extentReport.html', reportName: 'Extent Report', reportTitles: 'ExtentReports'])
+
+            }
+        }
+        stage('Documentation') {
+            steps {
+                livingDocs featuresDir: 'target', format: 'ALL', hideScenarioKeyword: true, toc: 'LEFT'
+            }
+        }
+    }
+}
